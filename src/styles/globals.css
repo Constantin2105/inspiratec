@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 100% 99.6%; /* rgb(253, 253, 255) */
+    --foreground: 224 71% 8.6%; /* rgb(6, 15, 38) */
+    --card: 240 100% 99.6%; /* rgb(253, 253, 255) */
+    --card-foreground: 245 84% 14.1%; /* rgb(11, 6, 66) */
+    --popover: var(--card);
+    --popover-foreground: var(--card-foreground);
+    
+    --primary: 244 83% 33%; /* rgb(24, 14, 154) */
+    --primary-foreground: 246 67% 97.6%; /* rgb(244, 243, 254) */
+    --primary-green: 142.1 70.6% 45.3%;
+    --primary-green-foreground: 355.7 100% 97.3%;
+    
+    /* Company Theme Colors */
+    --company-primary: 120 100% 25.1%; /* rgb(0, 128, 0) */
+    --company-primary-foreground: 120 100% 98.8%; /* rgb(249, 255, 249) */
+    --company-secondary: 108 46% 87.5%; /* rgb(209, 237, 201) */
+    --company-secondary-foreground: 120 100% 12.5%; /* rgb(0, 64, 0) */
+
+    --secondary: 244 70% 92.2%; /* rgb(220, 218, 252) */
+    --secondary-foreground: 244 83% 32.5%; /* rgb(23, 13, 153) */
+    --muted: 240 8% 95.9%; /* rgb(244, 244, 245) */
+    --muted-foreground: 240 3% 45.5%; /* rgb(112, 112, 120) */
+    --accent: 244 70% 92.2%; /* rgb(220, 218, 252) */
+    --accent-foreground: 244 84% 30.4%; /* rgb(22, 13, 142) */
+    --destructive: 0 84% 60.2%; /* rgb(239, 68, 68) */
+    --destructive-foreground: 0 0% 100%; /* rgb(255, 255, 255) */
+    --success: 142.1 76.2% 46.3%;
+    --success-foreground: 355.7 100% 97.3%;
+    --warning: 48 96% 50%;
+    --warning-foreground: 20 14% 4%;
+    --border: 240 4% 90%; /* rgb(228, 228, 231) */
+    --input: 240 4% 90%; /* rgb(228, 228, 231) */
+    --ring: 244 83% 40.8%; /* rgb(29, 16, 182) */
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 0 0% 8.2%; /* rgb(21, 21, 21) */
+    --foreground: 210 25% 98%; /* rgb(248, 250, 252) */
+    --card: 0 0% 11.8%; /* rgb(30, 30, 30) */
+    --card-foreground: 210 25% 98%; /* rgb(248, 250, 252) */
+    --popover: var(--card);
+    --popover-foreground: var(--card-foreground);
+    --primary: 240 100% 68.4%; /* rgb(94, 94, 255) */
+    --primary-foreground: 210 25% 98%; /* rgb(248, 250, 252) */
+    --primary-green: 142.1 70.6% 45.3%;
+    --primary-green-foreground: 355.7 100% 97.3%;
+    
+    /* Dark Company Theme Colors */
+    --company-primary: 102 47% 47.1%; /* rgb(98, 175, 65) */
+    --company-primary-foreground: 120 100% 98.8%; /* rgb(249, 255, 249) */
+    --company-secondary: 108 20% 20%; /* Derived dark green */
+    --company-secondary-foreground: 108 46% 87.5%; /* Derived light green */
+
+    --secondary: 216 33% 17.1%; /* rgb(29, 40, 58) */
+    --secondary-foreground: 210 25% 98%; /* rgb(248, 250, 252) */
+    --muted: 0 0% 24.3%; /* rgb(62, 62, 62) */
+    --muted-foreground: 210 20% 65.1%; /* rgb(148, 163, 184) */
+    --accent: 216 33% 17.1%; /* rgb(29, 40, 58) */
+    --accent-foreground: 210 25% 98%; /* rgb(248, 250, 252) */
+    --destructive: 0 63% 31%; /* rgb(129, 29, 29) */
+    --destructive-foreground: 210 40% 98%; /* Keeping existing */
+    --border: 0 0% 14.1%; /* rgb(36, 36, 36) */
+    --input: 0 0% 32.2%; /* rgb(82, 82, 82) */
+    --ring: 244 83% 65.1%; /* rgb(101, 91, 241) */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  html, body, #root {
+      height: 100%;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-futura;
+  }
+  .theme-company {
+    --primary: var(--company-primary);
+    --primary-foreground: var(--company-primary-foreground);
+    --secondary: var(--company-secondary);
+    --secondary-foreground: var(--company-secondary-foreground);
+    --ring: var(--company-primary);
+    --card: var(--background);
+    --card-foreground: var(--foreground);
+    --popover: var(--background);
+    --popover-foreground: var(--foreground);
+    --accent: var(--company-secondary);
+    --accent-foreground: var(--company-secondary-foreground);
+  }
+  .dark .theme-company {
+    --primary: var(--company-primary);
+    --primary-foreground: var(--company-primary-foreground);
+    --secondary: var(--company-secondary);
+    --secondary-foreground: var(--company-secondary-foreground);
+    --ring: var(--company-primary);
+    --card: var(--background);
+    --card-foreground: var(--foreground);
+    --popover: var(--background);
+    --popover-foreground: var(--foreground);
+    --accent: var(--company-secondary);
+    --accent-foreground: var(--company-secondary-foreground);
+  }
+  .theme-expert {
+    --primary: 244 83% 33%; /* rgb(24, 14, 154) */
+    --primary-foreground: 246 67% 97.6%; /* rgb(244, 243, 254) */
+    --ring: 244 83% 40.8%; /* rgb(29, 16, 182) */
+  }
+  .dark .theme-expert {
+    --primary: 240 100% 68.4%; /* rgb(94, 94, 255) */
+    --primary-foreground: 210 25% 98%; /* rgb(248, 250, 252) */
+    --ring: 244 83% 65.1%; /* rgb(101, 91, 241) */
+  }
+}
+
+@layer components {
+  .container-custom {
+    @apply container mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  .btn-green {
+    @apply bg-primary-green text-primary-green-foreground hover:bg-primary-green/90;
+  }
+}
+
+@layer utilities {
+  .animation-delay-2000 {
+    animation-delay: 2000ms;
+  }
+  .animate-blob {
+    animation: blob 7s infinite;
+  }
+  @keyframes blob {
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
