@@ -26,8 +26,9 @@ const schema = z.object({
 const UpdatePassword = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, profile, getRedirectPath } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [passwordUpdated, setPasswordUpdated] = useState(false);
 
   const handlePasswordUpdate = useCallback(async (password) => {
     const { error } = await supabase.auth.updateUser({ password });
@@ -41,12 +42,12 @@ const UpdatePassword = () => {
     } else {
       toast({
         title: 'Succès !',
-        description: 'Votre mot de passe a été défini. Vous pouvez maintenant vous connecter.',
+        description: 'Votre mot de passe a été mis à jour avec succès.',
       });
-      await supabase.auth.signOut();
-      navigate('/login');
+      setPasswordUpdated(true);
+      // L'utilisateur est maintenant connecté, on attend que le profil soit chargé pour rediriger
     }
-  }, [toast, navigate]);
+  }, [toast]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -55,15 +56,34 @@ const UpdatePassword = () => {
       }
     });
     
-    // If already in a recovery session
-    if (session?.user?.recovery_sent_at) {
+    // Vérifier si on est déjà dans une session de récupération
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      if (currentSession || !authLoading) {
         setLoading(false);
-    } else if (!authLoading) {
-        setLoading(false);
-    }
+      }
+    });
 
     return () => subscription.unsubscribe();
-  }, [session, authLoading]);
+  }, [authLoading]);
+
+  // Redirection automatique après mise à jour du mot de passe
+  useEffect(() => {
+    if (passwordUpdated && profile && !authLoading) {
+      const redirectPath = getRedirectPath(profile.role);
+      
+      // Ajouter un petit délai pour permettre au toast de s'afficher
+      setTimeout(() => {
+        toast({
+          title: 'Redirection...',
+          description: 'Vous allez être redirigé vers votre tableau de bord.',
+        });
+        
+        setTimeout(() => {
+          navigate(redirectPath, { replace: true });
+        }, 1000);
+      }, 500);
+    }
+  }, [passwordUpdated, profile, authLoading, getRedirectPath, navigate, toast]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
