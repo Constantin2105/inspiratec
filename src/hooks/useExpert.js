@@ -19,12 +19,12 @@ export const useExpert = () => {
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
     const fetchData = useCallback(async(currentProfile, forceRefresh = false) => {
-        if (!currentProfile ? .expert_profile_id || !currentProfile ? .id) {
-            if (!authLoading) setLoading(false);
-            return;
-        }
+        // eslint-disable-next-line
+        // if (!currentProfile ? .expert_profile_id || !currentProfile ? .id) {
+        //     if (!authLoading) setLoading(false);
+        //     return;
+        // }
 
         const cacheKey = currentProfile.id;
         const cachedData = cache[cacheKey];
@@ -51,40 +51,8 @@ export const useExpert = () => {
             ];
 
             const fullCandidaturesPromise = supabase
-                .from('candidatures')
-                .select(`
-          id, ao_id, expert_id, applied_at, updated_at, motivation, tjm_propose,
-          date_disponibilite, projets_similaires, motif_refus, linkedin_url, cv_url,
-          dossier_candidature_url, status, admin_rejection_reason, company_rejection_reason,
-          matching_id, matching_score, upload_type,
-          aos ( 
-            id, 
-            title, 
-            description, 
-            location, 
-            tjm_range, 
-            contract_type, 
-            required_skills, 
-            work_arrangement, 
-            duration, 
-            experience_level,
-            company_name,
-            candidature_deadline,
-            created_at,
-            company_id,
-            companies (
-              id,
-              name,
-              logo_url,
-              description,
-              website,
-              city,
-              address,
-              postal_code,
-              country
-            )
-          )
-        `)
+                .from('candidatures_with_details')
+                .select('*')
                 .eq('expert_id', expertId)
                 .order('applied_at', { ascending: false });
 
@@ -125,38 +93,7 @@ export const useExpert = () => {
             if (fullCandidaturesRes.error) {
                 errors.push({ source: 'full_candidatures', message: fullCandidaturesRes.error.message });
             } else {
-                const allCandidatures = (fullCandidaturesRes.data || []).map(c => {
-                    // Récupération des données de l'entreprise via la jointure
-                    const company = c.aos ? .companies;
-                    const companyName = company ? .name || c.aos ? .company_name || 'Non spécifié';
-
-                    return {
-                        ...c,
-                        // Informations de l'AO
-                        ao_title: c.aos ? .title || 'Titre non disponible',
-                        ao_description: c.aos ? .description || '',
-                        ao_location: c.aos ? .location || 'Non spécifié',
-                        ao_tjm_range: c.aos ? .tjm_range || 'Non spécifié',
-                        ao_contract_type: c.aos ? .contract_type || 'Non spécifié',
-                        ao_required_skills: c.aos ? .required_skills || [],
-                        ao_work_arrangement: c.aos ? .work_arrangement || 'Non spécifié',
-                        ao_duration: c.aos ? .duration || 'Non spécifié',
-                        ao_experience_level: c.aos ? .experience_level || [],
-                        ao_candidature_deadline: c.aos ? .candidature_deadline || null,
-                        ao_created_at: c.aos ? .created_at || null,
-
-                        // Informations de l'entreprise (via jointure)
-                        company_name: companyName,
-                        company_logo: company ? .logo_url || null,
-                        company_description: company ? .description || '',
-                        company_website: company ? .website || null,
-                        company_city: company ? .city || null,
-                        company_address: company ? .address || null,
-                        company_postal_code: company ? .postal_code || null,
-                        company_country: company ? .country || null,
-                        company_id: c.aos ? .company_id || null,
-                    };
-                });
+                const allCandidatures = fullCandidaturesRes.data || [];
                 loadedData.candidatures = allCandidatures;
                 loadedData.hiredProjects = allCandidatures.filter(c => c.status === 'HIRED');
             }

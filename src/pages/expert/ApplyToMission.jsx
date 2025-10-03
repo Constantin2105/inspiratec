@@ -170,7 +170,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
     
           toast({ title: 'Succès', description: 'Votre candidature a été envoyée !' });
           clearFormPersistence(formStorageKey);
-          setTimeout(() => navigate('/expert/dashboard?tab=missions&subtab=applications'), 1000);
+          setTimeout(() => navigate('/expert/dashboard?tab=missions'), 1000);
         } catch (error) {
           toast({ variant: 'destructive', title: 'Erreur', description: `L'envoi a échoué: ${error.message}` });
         }

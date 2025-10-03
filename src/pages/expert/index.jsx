@@ -166,8 +166,12 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
             setActiveTab(null);
         } else {
             setActiveTab(tab);
+            // Rafraîchir les données quand on revient sur l'onglet missions
+            if (tab === 'missions') {
+                refreshData();
+            }
         }
-      }, [queryParams, location.pathname]);
+      }, [queryParams, location.pathname, refreshData]);
 
       const handleTabChange = useCallback((tab) => {
         navigate(`/expert/dashboard?tab=${tab}`);

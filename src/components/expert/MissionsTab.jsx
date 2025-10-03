@@ -34,7 +34,8 @@ const MissionsTab = ({ aos, candidatures, loading, error, profile, onApplySucces
             aos={aos} 
             loading={loading} 
             profile={profile} 
-            onApplySuccess={onApplySuccess} 
+            onApplySuccess={onApplySuccess}
+            onWithdrawSuccess={onApplySuccess}
             onSelect={onSelect}
             selectedId={selectedId}
           />
