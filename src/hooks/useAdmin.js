@@ -103,8 +103,8 @@ export const useAdmin = () => {
         }
     }, [authLoading, toast]);
 
-    const refreshData = useCallback(() => {
-        fetchData();
+    const refreshData = useCallback(async() => {
+        await fetchData(true);
     }, [fetchData]);
 
     useEffect(() => {
@@ -170,6 +170,7 @@ export const useAdmin = () => {
 
             if (result.error) throw result.error;
             toast({ title: 'Succès', description: `Utilisateur ${action === 'create' ? 'créé' : action === 'update' ? 'mis à jour' : 'supprimé'}.` });
+            await refreshData();
             return { success: true, data: result.data };
         } catch (error) {
             toast({ variant: 'destructive', title: 'Erreur', description: error.message });
@@ -191,6 +192,7 @@ export const useAdmin = () => {
             }
             if (result.error) throw result.error;
             toast({ title: 'Succès', description: `Appel d'offres ${aoId ? 'mis à jour' : 'créé'}.` });
+            await refreshData();
             return { success: true, data: result.data };
         } catch (error) {
             toast({ variant: 'destructive', title: 'Erreur', description: error.message });
@@ -234,6 +236,7 @@ export const useAdmin = () => {
             }
 
             toast({ title: 'Succès', description: successMessage });
+            await refreshData();
             return { success: true };
         } catch (error) {
             toast({ variant: 'destructive', title: 'Erreur', description: error.message });
@@ -281,6 +284,7 @@ export const useAdmin = () => {
             }
 
             toast({ title: 'Succès', description: successMessage });
+            await refreshData();
             return { success: true };
         } catch (error) {
             toast({ variant: 'destructive', title: 'Erreur', description: error.message });
@@ -317,6 +321,7 @@ export const useAdmin = () => {
             if (error) throw error;
 
             toast({ title: 'Succès', description: successMessage });
+            await refreshData();
             return { success: true };
         } catch (error) {
             toast({ variant: 'destructive', title: 'Erreur', description: error.message });
@@ -368,7 +373,7 @@ export const useAdmin = () => {
             };
 
             toast({ title: 'Succès', description: `Article ${messages[action] || 'modifié'}.` });
-            refreshData(); // Rafraîchir les données après succès
+            await refreshData(); // Rafraîchir les données après succès
             return { success: true, data: result.data };
         } catch (error) {
             toast({ variant: 'destructive', title: 'Erreur', description: error.message });
