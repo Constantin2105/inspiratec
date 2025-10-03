@@ -114,7 +114,7 @@ const TestimonialList = ({ onSelect, refreshKey, onAction }) => {
 
   const confirmDelete = () => {
     if (itemToDelete) {
-      onAction('delete', itemToDelete);
+      onAction('delete', { ...itemToDelete, type: 'testimonial' });
       setItemToDelete(null);
     }
   };

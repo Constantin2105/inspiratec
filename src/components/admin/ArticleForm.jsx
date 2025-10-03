@@ -1,4 +1,4 @@
-import React, { useEffect, useState, lazy, Suspense, useMemo } from 'react';
+import React, { useEffect, useState, lazy, Suspense, useMemo, useRef, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -9,14 +9,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAdmin } from '@/hooks/useAdmin';
 import { supabase } from '@/lib/supabase/client';
 import Spinner from '@/components/common/Spinner';
-import { UploadCloud, X } from 'lucide-react';
+import { UploadCloud, X, Save } from 'lucide-react';
 import { useFormPersistence, clearFormPersistence } from '@/hooks/useFormPersistence';
 import { stripHtml } from '@/lib/utils/editor.js';
+import { useToast } from '@/components/ui/use-toast';
+import { v4 as uuidv4 } from 'uuid';
 
 const TiptapEditor = lazy(() => import('@/components/editor/TiptapEditor'));
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+const slugify = (text) => {
+  if (!text) return '';
+  return text
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Supprimer les accents
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]+/g, '')
+    .replace(/--+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+};
 
 const fileSchema = z.any()
   .optional()
@@ -97,9 +114,13 @@ const CoverImageUploader = ({ control, watch, setValue, errors, currentImageUrl 
 };
 
 const ArticleForm = ({ articleSlug, onFinished }) => {
-  const { handleArticleAction, loadingAction } = useAdmin();
+  const { handleArticleAction, loadingAction, profile: adminProfile } = useAdmin();
+  const { toast } = useToast();
   const [article, setArticle] = useState(null);
   const [loading, setLoading] = useState(!!articleSlug);
+  const [autoDraftId, setAutoDraftId] = useState(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const autoSaveTimeoutRef = useRef(null);
   
   const formPersistenceKey = useMemo(() => `form-blog-article-${articleSlug || 'new'}`, [articleSlug]);
 
@@ -111,9 +132,100 @@ const ArticleForm = ({ articleSlug, onFinished }) => {
     },
   });
 
-  const { register, handleSubmit, formState: { errors }, control, reset, watch, setValue } = form;
+  const { register, handleSubmit, formState: { errors, isDirty }, control, reset, watch, setValue } = form;
 
   useFormPersistence(form, formPersistenceKey);
+
+  // Fonction pour sauvegarder automatiquement le brouillon
+  const saveAutoDraft = useCallback(async (silent = false) => {
+    const values = form.getValues();
+    
+    // Vérifier si on a au moins un titre ou du contenu
+    const hasContent = values.title?.trim() || (values.content && stripHtml(values.content).trim().length > 0);
+    if (!hasContent || !isDirty) return;
+
+    // Vérifier qu'on a un adminProfile
+    if (!adminProfile?.id) {
+      console.error('adminProfile manquant');
+      return;
+    }
+
+    setIsSavingDraft(true);
+    try {
+      // Récupérer l'ID admin depuis la table admins
+      const { data: adminRecord, error: adminError } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('user_id', adminProfile.id)
+        .single();
+
+      if (adminError || !adminRecord) {
+        console.error('Profil administrateur introuvable:', adminError);
+        if (!silent) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: 'Profil administrateur introuvable.',
+          });
+        }
+        return;
+      }
+
+      const draftData = {
+        title: values.title || 'Brouillon sans titre',
+        content: values.content || '',
+        summary: values.summary || '',
+        author_name: values.author_name || '',
+        video_url: values.video_url || '',
+        tags: values.tags ? values.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+        status: 'draft',
+        admin_id: adminRecord.id,
+      };
+
+      let result;
+      if (autoDraftId || article?.id) {
+        // Mise à jour du brouillon existant
+        const idToUpdate = autoDraftId || article.id;
+        result = await supabase
+          .from('blogs')
+          .update(draftData)
+          .eq('id', idToUpdate)
+          .select()
+          .single();
+      } else {
+        // Création d'un nouveau brouillon
+        result = await supabase
+          .from('blogs')
+          .insert(draftData)
+          .select()
+          .single();
+        
+        if (result.data) {
+          setAutoDraftId(result.data.id);
+        }
+      }
+
+      if (result.error) throw result.error;
+
+      if (!silent) {
+        toast({
+          title: 'Brouillon sauvegardé',
+          description: 'Votre travail a été sauvegardé automatiquement.',
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde automatique:', error);
+      if (!silent) {
+        toast({
+          variant: 'destructive',
+          title: 'Erreur',
+          description: 'Impossible de sauvegarder le brouillon.',
+        });
+      }
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [form, isDirty, autoDraftId, article?.id, adminProfile?.id, toast]);
 
   useEffect(() => {
     if (articleSlug) {
@@ -122,6 +234,7 @@ const ArticleForm = ({ articleSlug, onFinished }) => {
         const { data, error } = await supabase.from('blogs_with_details').select('*').eq('slug', articleSlug).single();
         if (data) {
           setArticle(data);
+          setAutoDraftId(data.id); // Définir l'ID pour la sauvegarde auto
           
           const savedData = sessionStorage.getItem(formPersistenceKey);
           if (!savedData) {
@@ -134,25 +247,194 @@ const ArticleForm = ({ articleSlug, onFinished }) => {
         setLoading(false);
       };
       fetchArticle();
+    } else {
+      // Pour une nouvelle création, charger le dernier brouillon auto-sauvegardé s'il existe
+      const loadLastAutoDraft = async () => {
+        setLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from('blogs')
+            .select('*')
+            .eq('status', 'draft')
+            .is('slug', null) // Seulement les brouillons non publiés
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (data && !error) {
+            const now = new Date();
+            const draftUpdated = new Date(data.updated_at);
+            const hoursDiff = (now - draftUpdated) / (1000 * 60 * 60);
+            
+            // Charger seulement si le brouillon a moins de 24h et pas de données en session
+            if (hoursDiff < 24 && !sessionStorage.getItem(formPersistenceKey)) {
+              setAutoDraftId(data.id);
+              setArticle(data);
+              reset({
+                title: data.title || '',
+                content: data.content || '',
+                summary: data.summary || '',
+                author_name: data.author_name || '',
+                video_url: data.video_url || '',
+                tags: data.tags?.join(', ') || '',
+                status: data.status,
+              });
+              toast({
+                title: 'Brouillon récupéré',
+                description: 'Votre dernier brouillon a été chargé. Vous pouvez continuer votre travail.',
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement du brouillon:', error);
+        }
+        setLoading(false);
+      };
+      loadLastAutoDraft();
     }
-  }, [articleSlug, reset, formPersistenceKey]);
+  }, [articleSlug, reset, formPersistenceKey, toast]);
+
+  // Auto-sauvegarde périodique (toutes les 30 secondes après un changement)
+  useEffect(() => {
+    if (isDirty) {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        saveAutoDraft(true); // silent = true pour ne pas afficher de toast
+      }, 30000); // 30 secondes
+    }
+    
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [isDirty, saveAutoDraft]);
+
+  // Sauvegarde lors de la fermeture de la page
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        saveAutoDraft(true);
+        // Certains navigateurs affichent une alerte de confirmation
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && isDirty) {
+        saveAutoDraft(true);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isDirty, saveAutoDraft]);
   
   const onSubmit = async (formData) => {
-    const action = article ? 'update' : 'create';
-    const payload = { 
-      ...formData, 
-      ...(article && { id: article.id, image_url: article.image_url, published_at: article.published_at })
-    };
-    const result = await handleArticleAction(action, payload);
-    if (result.success) {
-        clearFormPersistence(formPersistenceKey);
-        onFinished();
+    try {
+      const action = (article?.id || autoDraftId) ? 'update' : 'create';
+      const currentId = article?.id || autoDraftId;
+      
+      // Gérer l'upload de l'image de couverture
+      let imageUrl = article?.image_url;
+      if (formData.cover_image && formData.cover_image.length > 0) {
+        const file = formData.cover_image[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `covers/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('blog-images')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: `Erreur lors de l'upload de l'image: ${uploadError.message}`,
+          });
+          return;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('blog-images')
+          .getPublicUrl(filePath);
+        
+        imageUrl = publicUrl;
+      }
+
+      // Générer le slug si on publie l'article et qu'il n'a pas déjà un slug
+      let slug = article?.slug;
+      if (formData.status === 'published' && !slug) {
+        slug = slugify(formData.title);
+        
+        // Vérifier si le slug existe déjà
+        const { data: existing } = await supabase
+          .from('blogs')
+          .select('slug')
+          .eq('slug', slug)
+          .maybeSingle();
+        
+        if (existing) {
+          // Ajouter un suffixe unique si le slug existe déjà
+          slug = `${slug}-${uuidv4().slice(0, 6)}`;
+        }
+      }
+
+      // Définir published_at lors de la première publication
+      let publishedAt = article?.published_at;
+      const isPublishingFirstTime = formData.status === 'published' && 
+        (!publishedAt || new Date(publishedAt).getUTCFullYear() === 1970);
+      
+      if (isPublishingFirstTime) {
+        publishedAt = new Date().toISOString();
+      }
+
+      // Préparer le payload sans le fichier cover_image
+      const { cover_image, ...dataWithoutFile } = formData;
+      const payload = { 
+        ...dataWithoutFile,
+        image_url: imageUrl,
+        ...(slug && { slug }),
+        ...(publishedAt && { published_at: publishedAt }),
+        ...(currentId && { id: currentId })
+      };
+
+      const result = await handleArticleAction(action, currentId, payload);
+      if (result.success) {
+          clearFormPersistence(formPersistenceKey);
+          setAutoDraftId(null);
+          onFinished();
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Une erreur est survenue lors de la soumission du formulaire.',
+      });
     }
   };
   
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    // Sauvegarder le brouillon avant de quitter si modifications non sauvegardées
+    if (isDirty) {
+      await saveAutoDraft(true);
+    }
     clearFormPersistence(formPersistenceKey);
     onFinished();
+  };
+
+  const handleManualSave = async () => {
+    await saveAutoDraft(false); // Afficher le toast de confirmation
   };
 
   if (loading) return <div className="flex justify-center items-center py-10"><Spinner /></div>;
@@ -197,12 +479,36 @@ const ArticleForm = ({ articleSlug, onFinished }) => {
         </div>
       </div>
       
-      <div className="flex justify-end gap-2 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={handleCancel} disabled={loadingAction}>Annuler</Button>
-        <Button type="submit" disabled={loadingAction}>
+      <div className="flex justify-between items-center pt-4 border-t">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {isSavingDraft && (
+            <>
+              <Spinner size="sm" />
+              <span>Sauvegarde en cours...</span>
+            </>
+          )}
+          {autoDraftId && !isSavingDraft && (
+            <span className="text-green-600">✓ Brouillon sauvegardé</span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={handleCancel} disabled={loadingAction}>
+            Annuler
+          </Button>
+          <Button 
+            type="button" 
+            variant="secondary" 
+            onClick={handleManualSave} 
+            disabled={loadingAction || isSavingDraft || !isDirty}
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Sauvegarder brouillon
+          </Button>
+          <Button type="submit" disabled={loadingAction || isSavingDraft}>
             {loadingAction && <Spinner size="sm" className="mr-2" />}
             {article ? 'Mettre à jour l\'article' : 'Créer l\'article'}
-        </Button>
+          </Button>
+        </div>
       </div>
     </form>
   );
