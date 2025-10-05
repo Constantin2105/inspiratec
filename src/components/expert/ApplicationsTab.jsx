@@ -34,9 +34,10 @@ import React, { useMemo, useState } from 'react';
       }, [applications]);
     
       const handleWithdraw = async (appId) => {
-        const { error } = await supabase.rpc('delete_candidature', {
-          p_candidature_id: appId
-        });
+      const { error } = await supabase
+        .from('candidatures')
+        .delete()
+        .eq('id', appId);
     
         if (error) {
           toast({ variant: 'destructive', title: 'Erreur', description: error.message });

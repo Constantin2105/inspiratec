@@ -100,11 +100,11 @@ const AdminBlogPage = ({ isTabbedView = false }) => {
 
   const handleEdit = (article) => navigate(`/admin/blog/edit/${article.slug}`);
   const handleDelete = async (article) => { 
-    await handleArticleAction('delete', { id: article.id }); 
+    await handleArticleAction('delete', article.id, {}); 
     fetchArticles();
   };
   const handleUpdateStatus = async (article, newStatus) => { 
-    await handleArticleAction('updateStatus', { id: article.id, status: newStatus }); 
+    await handleArticleAction('updateStatus', article.id, { status: newStatus }); 
     fetchArticles();
   };
   const handleView = (article) => navigate(`/admin/blog/view/${article.slug}`);

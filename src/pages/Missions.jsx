@@ -21,24 +21,47 @@ import React, { useState, useEffect } from 'react';
       const { toast } = useToast();
       const navigate = useNavigate();
 
-      useEffect(() => {
-        const fetchMissions = async () => {
-          setLoading(true);
-          const { data, error } = await supabase
-            .from('aos')
-            .select('*, companies(name)')
-            .eq('status', 'published')
-            .order('created_at', { ascending: false });
-          
-          if (error) {
-            toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les missions.' });
-          } else {
-            setMissions(data);
-          }
+      const fetchMissions = async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('aos')
+          .select('*, companies(name)')
+          .eq('status', 'published')
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les missions.' });
           setLoading(false);
-        };
+          return;
+        }
+
+        // Si l'utilisateur est un expert, on récupère ses candidatures
+        if (user?.role === 'expert' && profile?.id) {
+          const { data: applications } = await supabase
+            .from('candidatures')
+            .select('ao_id, status')
+            .eq('expert_id', profile.id);
+
+          const applicationsMap = new Map();
+          applications?.forEach(app => {
+            applicationsMap.set(app.ao_id, app.status);
+          });
+
+          const missionsWithStatus = data.map(mission => ({
+            ...mission,
+            application_status: applicationsMap.get(mission.id) || null,
+          }));
+
+          setMissions(missionsWithStatus);
+        } else {
+          setMissions(data);
+        }
+        setLoading(false);
+      };
+
+      useEffect(() => {
         fetchMissions();
-      }, [toast]);
+      }, [toast, user, profile]);
       
       const handleApply = async (aoId) => {
         if (!user) {
@@ -92,10 +115,13 @@ import React, { useState, useEffect } from 'react';
 
         if (error) {
           toast({ variant: 'destructive', title: 'Erreur', description: `La postulation a échoué: ${error.message}` });
+          setApplyingId(null);
         } else {
           toast({ title: 'Succès', description: 'Votre candidature a été envoyée !' });
+          setApplyingId(null);
+          // Recharger les missions pour afficher l'état de candidature
+          await fetchMissions();
         }
-        setApplyingId(null);
       };
 
       return (
@@ -133,26 +159,32 @@ import React, { useState, useEffect } from 'react';
                         </div>
                       </CardContent>
                       <CardFooter className="flex-col items-stretch gap-4 pt-4">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button disabled={applyingId === mission.id} className="w-full">
-                              {applyingId === mission.id ? <Spinner size="sm" /> : <Send className="mr-2 h-4 w-4" />}
-                              Postuler
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Confirmer la candidature</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Votre profil sera envoyé à l'entreprise pour la mission "{mission.title}". Êtes-vous sûr de vouloir continuer ?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annuler</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleApply(mission.id)}>Confirmer</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        {mission.application_status ? (
+                          <Button disabled className="w-full">
+                            Candidature envoyée
+                          </Button>
+                        ) : (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button disabled={applyingId === mission.id} className="w-full">
+                                {applyingId === mission.id ? <Spinner size="sm" /> : <Send className="mr-2 h-4 w-4" />}
+                                Postuler
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Confirmer la candidature</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Votre profil sera envoyé à l'entreprise pour la mission "{mission.title}". Êtes-vous sûr de vouloir continuer ?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleApply(mission.id)}>Confirmer</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                         <p className="text-xs text-muted-foreground text-center">
                           Publié {formatDistanceToNow(new Date(mission.created_at), { locale: fr, addSuffix: true })}
                         </p>

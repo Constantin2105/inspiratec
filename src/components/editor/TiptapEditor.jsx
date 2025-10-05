@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -9,19 +9,27 @@ import Placeholder from '@tiptap/extension-placeholder';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Heading1, Heading2, Heading3, List,
   ListOrdered, Quote, Code, Link as LinkIcon, Image as ImageIcon, Minus, WrapText,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, Upload, Loader2
 } from 'lucide-react';
 import { Toggle } from '@/components/ui/toggle';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils/cn';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 
-const Toolbar = ({ editor }) => {
+const Toolbar = ({ editor, onImageUpload }) => {
+  const { toast } = useToast();
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [isImagePopoverOpen, setIsImagePopoverOpen] = useState(false);
+  const fileInputRef = useRef(null);
+
   const setLink = useCallback(() => {
     if (!editor) return;
     const previousUrl = editor.getAttributes('link').href;
@@ -37,7 +45,46 @@ const Toolbar = ({ editor }) => {
   const addImage = useCallback((url) => {
     if (!editor || !url) return;
     editor.chain().focus().setImage({ src: url }).run();
+    setImageUrl('');
+    setIsImagePopoverOpen(false);
   }, [editor]);
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Veuillez sélectionner un fichier image.',
+      });
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const url = await onImageUpload(file);
+      if (url) {
+        addImage(url);
+        toast({
+          title: 'Succès',
+          description: 'Image téléchargée avec succès.',
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Échec du téléchargement de l\'image.',
+      });
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   if (!editor) return null;
 
@@ -63,13 +110,78 @@ const Toolbar = ({ editor }) => {
       <Toggle size="sm" pressed={editor.isActive('codeBlock')} onPressedChange={() => editor.chain().focus().toggleCodeBlock().run()}><Code className="h-4 w-4" /></Toggle>
       <Separator orientation="vertical" className="h-8" />
       <Button size="sm" variant="ghost" onClick={setLink}><LinkIcon className="h-4 w-4" /></Button>
-      <Popover>
-        <PopoverTrigger asChild><Button size="sm" variant="ghost"><ImageIcon className="h-4 w-4" /></Button></PopoverTrigger>
-        <PopoverContent className="w-80">
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Insérer une image</p>
-            <Input type="url" placeholder="Coller l'URL de l'image..." onKeyDown={(e) => { if (e.key === 'Enter') { addImage(e.target.value); e.target.value = ''; } }}/>
-          </div>
+      <Popover open={isImagePopoverOpen} onOpenChange={setIsImagePopoverOpen}>
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="ghost" disabled={isUploadingImage}>
+            {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-96">
+          <Tabs defaultValue="upload" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="upload">Télécharger</TabsTrigger>
+              <TabsTrigger value="url">URL</TabsTrigger>
+            </TabsList>
+            <TabsContent value="upload" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="image-upload" className="text-sm font-medium">
+                  Sélectionner une image
+                </Label>
+                <div className="flex flex-col gap-2">
+                  <Input
+                    id="image-upload"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    disabled={isUploadingImage}
+                    className="cursor-pointer"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Formats acceptés : JPG, PNG, GIF, WebP (max 5MB)
+                  </p>
+                </div>
+                {isUploadingImage && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Téléchargement en cours...</span>
+                  </div>
+                )}
+              </div>
+              <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground">
+                  💡 Vous pouvez aussi glisser-déposer ou coller une image directement dans l'éditeur
+                </p>
+              </div>
+            </TabsContent>
+            <TabsContent value="url" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="image-url" className="text-sm font-medium">
+                  URL de l'image
+                </Label>
+                <Input
+                  id="image-url"
+                  type="url"
+                  placeholder="https://exemple.com/image.jpg"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && imageUrl) {
+                      addImage(imageUrl);
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => addImage(imageUrl)}
+                  disabled={!imageUrl}
+                  className="w-full"
+                >
+                  Insérer l'image
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
         </PopoverContent>
       </Popover>
       <Button size="sm" variant="ghost" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus className="h-4 w-4" /></Button>
@@ -82,7 +194,28 @@ const TiptapEditor = ({ value, onChange, onBlur, disabled, placeholder = 'Commen
   const { toast } = useToast();
 
   const handleFileUpload = async (file) => {
-    if (!file) return;
+    if (!file) return null;
+
+    // Vérifier la taille du fichier (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB en bytes
+    if (file.size > maxSize) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Erreur', 
+        description: 'La taille du fichier ne doit pas dépasser 5MB.' 
+      });
+      return null;
+    }
+
+    // Vérifier le type de fichier
+    if (!file.type.startsWith('image/')) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Erreur', 
+        description: 'Seuls les fichiers image sont acceptés.' 
+      });
+      return null;
+    }
 
     const fileExt = file.name.split('.').pop();
     const fileName = `${uuidv4()}.${fileExt}`;
@@ -173,7 +306,7 @@ const TiptapEditor = ({ value, onChange, onBlur, disabled, placeholder = 'Commen
 
   return (
     <div className={cn('w-full rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2', { 'opacity-50 cursor-not-allowed': disabled })}>
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} onImageUpload={handleFileUpload} />
       <EditorContent editor={editor} />
     </div>
   );

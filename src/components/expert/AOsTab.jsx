@@ -21,7 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const AOsTab = ({ aos, loading, profile, onSelect, selectedId, onWithdrawSuccess }) => {
+const AOsTab = ({ aos, loading, profile, onSelect, selectedId, onWithdrawSuccess, onApplySuccess }) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -39,15 +39,17 @@ const AOsTab = ({ aos, loading, profile, onSelect, selectedId, onWithdrawSuccess
       return;
     }
 
-    const { error } = await supabase.rpc('delete_candidature', {
-      p_candidature_id: candidature.id
-    });
+    const { error } = await supabase
+      .from('candidatures')
+      .delete()
+      .eq('id', candidature.id);
 
     if (error) {
       toast({ variant: 'destructive', title: 'Erreur', description: error.message });
     } else {
       toast({ title: 'Succès', description: 'Votre candidature a été retirée.' });
       if(onWithdrawSuccess) onWithdrawSuccess();
+      if(onApplySuccess) onApplySuccess();
     }
   };
 
